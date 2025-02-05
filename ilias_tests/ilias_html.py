@@ -484,12 +484,12 @@ class ExtendedIliasPage(IliasPage):
     def get_manual_grading_participant_infos(self) -> list[ManualGradingParticipantInfo]:
         table = self._soup.find(name="table", id="manScorePartTable")
         rows = list(table.select("tbody > tr"))
-        if len(rows) == 1:
-            cols = list(rows[0].select("td"))
-            # no entries
-            if len(cols) == 1:
-                return []
-        participants = []
+
+        # No participant results, only a single row with a single td containing the text "no results"
+        if len(rows) == 1 and len(rows[0].select("td")) == 1:
+            log.explain("Participant table had no results")
+            return []
+
         for row in rows:
             cols = list(row.select("td"))
             last_name = cols[0].getText().strip()
