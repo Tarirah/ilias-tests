@@ -482,6 +482,7 @@ class ExtendedIliasPage(IliasPage):
         return self._abs_url_from_relative(link)
 
     def get_manual_grading_participant_infos(self) -> list[ManualGradingParticipantInfo]:
+        participants = []
         table = self._soup.find(name="table", id="manScorePartTable")
         rows = list(table.select("tbody > tr"))
 
