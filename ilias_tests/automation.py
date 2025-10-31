@@ -1,6 +1,6 @@
+from collections.abc import Awaitable, Callable
 from pathlib import Path, PurePath
-from typing import Awaitable, Callable, Optional, Any
-from dataclasses import asdict
+from typing import Optional, cast
 
 from PFERD.crawl.ilias.kit_ilias_html import IliasElementType
 from PFERD.logging import log
@@ -11,12 +11,14 @@ from .ilias_action import IliasInteractor
 from .ilias_html import ExtendedIliasPage
 from .spec import (
     IliasTest,
-    TestQuestion,
-    filter_with_regex,
-    TestTab,
-    manual_grading_write_question_md,
     ManualGradingParticipantResults,
+    PageDesignBlockText,
+    ProgrammingQuestionAnswer,
+    TestQuestion,
+    TestTab,
+    filter_with_regex,
     load_manual_grading_results_from_md,
+    manual_grading_write_question_md,
 )
 
 
@@ -30,21 +32,12 @@ async def add_test(interactor: IliasInteractor, folder: ExtendedIliasPage, test:
         tab_page,
         test.title,
         test.description,
-        test.intro_text,
         test.starting_time,
         test.ending_time,
         test.number_of_tries,
     )
-    # Somehow ILIAS needs this twice to actually fill out the intro text...
-    tab_page = await interactor.configure_test(
-        tab_page,
-        test.title,
-        test.description,
-        test.intro_text,
-        test.starting_time,
-        test.ending_time,
-        test.number_of_tries,
-    )
+    log.status("[cyan]", "Create", f"{indent}Configure introduction text")
+    await interactor.configure_test_intro(tab_page, [PageDesignBlockText(test.intro_text)])
     log.status("[cyan]", "Create", f"{indent}Configure scoring settings so people see their results")
     tab_page = await interactor.configure_test_scoring(tab_page)
     log.explain_topic("Navigating to questions")
@@ -77,6 +70,10 @@ async def slurp_tests_from_folder(interactor: IliasInteractor, folder_url: str, 
             properties_page = await interactor.select_tab(test_page, TestTab.SETTINGS)
 
             questions = await slurp_questions_from_test(interactor, test_page, aux_path)
+
+            if not questions:
+                log.warn(f"Test {child.name!r} has no questions, skipping")
+                continue
 
             log.explain_topic("Converting settings page to test")
             tests.append(properties_page.get_test_reconstruct_from_properties(questions))
@@ -140,7 +137,7 @@ async def slurp_participant_results(
     tab_page = await interactor.select_tab(test_page, TestTab.MANUAL_GRADING)
 
     log.explain("Navigating to manual grading per participant")
-    tab_page = await interactor.select_page(tab_page.get_manual_grading_per_participant_url())
+    tab_page = await interactor.select_page(cast(str, tab_page.get_manual_grading_per_participant_url()))
 
     log.explain("Showing all participants")
     page = await interactor.set_manual_grading_filter_show_all(tab_page)
@@ -162,7 +159,7 @@ async def slurp_participant_results(
         for answer in participant_result.answers:
             question = answer.question
             if question.question_type == "file_upload":
-                for file in answer.answer:
+                for file in cast(list[ProgrammingQuestionAnswer], answer.answer):
                     await file.download(interactor)
         participant_results.append(participant_result)
     return participant_results
@@ -184,7 +181,7 @@ async def upload_grading_state(
     tab_page = await interactor.select_tab(test_page, TestTab.MANUAL_GRADING)
 
     log.explain("Navigating to manual grading per participant")
-    tab_page = await interactor.select_page(tab_page.get_manual_grading_per_participant_url())
+    tab_page = await interactor.select_page(cast(str, tab_page.get_manual_grading_per_participant_url()))
 
     log.explain("Showing all participants")
     page = await interactor.set_manual_grading_filter_show_all(tab_page)
